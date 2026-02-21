@@ -41,6 +41,17 @@ This checks for `op` CLI, detects your OS/package manager, and can install depen
 
 ## Install
 
+Quick install (via gist):
+
+```bash
+curl -fsSL https://gist.githubusercontent.com/jhartzell/324260eb4a80f486fcff0179cde00998/raw/install.sh | bash
+```
+
+This installer downloads source from GitHub and builds `secretvault` into `$(go env GOBIN)` (or `$(go env GOPATH)/bin`).
+Requirements: Go 1.22+, `curl`, and `tar`.
+
+Gist: https://gist.github.com/jhartzell/324260eb4a80f486fcff0179cde00998
+
 ```bash
 go install ./cmd/secretvault
 ```
