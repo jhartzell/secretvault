@@ -3,3 +3,6 @@ bin/
 .secrets-vault-smoke-bin
 .ai-sessions/
 .claude/
+.mcp.json
+CLAUDE.md
+**/CLAUDE.md
