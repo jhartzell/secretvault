@@ -9,3 +9,7 @@ func runAbsorbCommand(args []string) error {
 func runSetupCommand(args []string) error {
 	return application.RunSetupCommand(args)
 }
+
+func runCleanupCommand(args []string) error {
+	return application.RunCleanupCommand(args)
+}

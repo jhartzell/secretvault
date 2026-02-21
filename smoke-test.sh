@@ -120,12 +120,17 @@ HOME="$TMP_HOME" "$BIN_PATH" install opencode
 HOME="$TMP_HOME" "$BIN_PATH" install claude --mode strict
 assert_file_exists "$TMP_HOME/.config/opencode/hooks/pre-message.d/secretvault-lock.sh"
 assert_file_exists "$TMP_HOME/.config/opencode/hooks/post-response.d/secretvault-unlock.sh"
+assert_file_exists "$TMP_HOME/.config/opencode/plugins/secretvault-hooks.js"
 assert_file_exists "$TMP_HOME/.claude/hooks/pre-message.d/secretvault-lock.sh"
 assert_file_exists "$TMP_HOME/.claude/hooks/post-response.d/secretvault-unlock.sh"
 
 OPENCODE_POST_CONTENT="$(<"$TMP_HOME/.config/opencode/hooks/post-response.d/secretvault-unlock.sh")"
+OPENCODE_PLUGIN_CONTENT="$(<"$TMP_HOME/.config/opencode/plugins/secretvault-hooks.js")"
 CLAUDE_POST_CONTENT="$(<"$TMP_HOME/.claude/hooks/post-response.d/secretvault-unlock.sh")"
-assert_contains "$OPENCODE_POST_CONTENT" "secretvault lock"
+assert_contains "$OPENCODE_POST_CONTENT" "secretvault unlock"
+assert_contains "$OPENCODE_PLUGIN_CONTENT" "event.type === \"session.status\""
+assert_contains "$OPENCODE_PLUGIN_CONTENT" "run(\"lock\")"
+assert_contains "$OPENCODE_PLUGIN_CONTENT" "run(\"unlock\")"
 assert_contains "$CLAUDE_POST_CONTENT" "secretvault unlock"
 
 echo "[6/7] Unlocking files"

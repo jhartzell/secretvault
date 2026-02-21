@@ -131,6 +131,9 @@ func FindEncryptedFiles(roots []string) ([]string, error) {
 
 func IsSensitiveFile(path string) (bool, error) {
 	base := strings.ToLower(filepath.Base(path))
+	if isGeneratedArtifact(base) {
+		return false, nil
+	}
 	if _, ok := SensitiveExactNames[base]; ok {
 		return true, nil
 	}
@@ -161,6 +164,10 @@ func hasSensitiveDir(path string) bool {
 }
 
 func looksSensitiveByContent(path string) (bool, error) {
+	if !shouldScanFileContent(path) {
+		return false, nil
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return false, err
@@ -185,4 +192,32 @@ func looksSensitiveByContent(path string) (bool, error) {
 	}
 
 	return SecretContentPattern.Match(buf[:n]), nil
+}
+
+func isGeneratedArtifact(base string) bool {
+	if strings.HasPrefix(base, ".svault-tmp-") {
+		return true
+	}
+	suffixes := []string{".pre-absorb", ".bak", ".orig", ".rej", "~"}
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(base, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func shouldScanFileContent(path string) bool {
+	base := strings.ToLower(filepath.Base(path))
+	if strings.HasPrefix(base, ".env") {
+		return true
+	}
+
+	ext := strings.ToLower(filepath.Ext(base))
+	switch ext {
+	case ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".conf", ".config", ".cfg", ".properties":
+		return true
+	default:
+		return false
+	}
 }

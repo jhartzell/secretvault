@@ -60,6 +60,7 @@ var (
 
 	IgnoredDirNames = map[string]struct{}{
 		".git":         {},
+		".terraform":   {},
 		".svn":         {},
 		".hg":          {},
 		"node_modules": {},
@@ -73,7 +74,7 @@ var (
 		".ai-sessions": {},
 	}
 
-	SecretContentPattern = regexp.MustCompile(`(?i)(api[_-]?key|secret|token|password|private[_-]?key)\s*[:=]|aws_secret_access_key|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----`)
+	SecretContentPattern = regexp.MustCompile(`(?i)(api[_-]?key|token|password|private[_-]?key|secret[_-]?(key|token|value))\s*[:=]|aws_secret_access_key|-----BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY-----`)
 )
 
 type ProjectContext struct {

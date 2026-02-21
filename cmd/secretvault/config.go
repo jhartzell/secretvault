@@ -35,27 +35,23 @@ func printUsage() {
 	fmt.Printf("%s - lock/unlock sensitive project files\n", name)
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Printf("  %s key set [--value <string> | --generate]\n", name)
-	fmt.Printf("  %s key show\n", name)
-	fmt.Printf("  %s key clear\n", name)
+	fmt.Printf("  %s key [set|show|clear] [--value <string> | --generate]\n", name)
 	fmt.Printf("  %s scan [path ...]\n", name)
 	fmt.Printf("  %s lock [--dry-run] [path ...]\n", name)
 	fmt.Printf("  %s unlock [--dry-run] [path ...]\n", name)
 	fmt.Printf("  %s restore [--all] [--force] [path ...]\n", name)
-	fmt.Printf("  %s absorb --vault <name> [--dry-run] [--yes] [path ...]\n", name)
+	fmt.Printf("  %s absorb [--vault <name>] [--dry-run] [--yes] [path ...]\n", name)
+	fmt.Printf("  %s cleanup [--dry-run] [--yes]\n", name)
 	fmt.Printf("  %s vault status\n", name)
-	fmt.Printf("  %s install [--mode stable-dev|strict] opencode\n", name)
-	fmt.Printf("  %s install [--mode stable-dev|strict] claude\n", name)
+	fmt.Printf("  %s install [--mode stable-dev|strict] [opencode|claude]\n", name)
 	fmt.Printf("  %s run -- <command> [args ...]\n", name)
-	fmt.Printf("  %s setup [--yes]\n", name)
+	fmt.Printf("  %s setup [--yes] [--signin-address <address>]\n", name)
 }
 
 func printKeyUsage() {
 	name := cliName()
 	fmt.Println("Usage:")
-	fmt.Printf("  %s key set [--value <string> | --generate]\n", name)
-	fmt.Printf("  %s key show\n", name)
-	fmt.Printf("  %s key clear\n", name)
+	fmt.Printf("  %s key [set|show|clear] [--value <string> | --generate]\n", name)
 }
 
 func cliName() string {

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/zalando/go-keyring"
@@ -14,7 +16,31 @@ import (
 
 func RunKeyCommand(args []string, cliName string) error {
 	if len(args) == 0 {
-		return errors.New("missing key subcommand")
+		if !isInteractiveTerminal() {
+			return errors.New("missing key subcommand")
+		}
+		choice, err := promptSelect("Choose key command:", []promptOption{
+			{Value: "set", Label: "Set", Description: "create/update encryption key"},
+			{Value: "show", Label: "Show", Description: "show key status and fingerprint"},
+			{Value: "clear", Label: "Clear", Description: "remove stored key for this project"},
+		})
+		if err != nil {
+			return err
+		}
+		args = []string{choice}
+	}
+
+	if len(args) == 1 && args[0] == "set" && isInteractiveTerminal() {
+		setMode, err := promptSelect("Set key mode:", []promptOption{
+			{Value: "generate", Label: "Generate random key", Description: "recommended and strongest default"},
+			{Value: "passphrase", Label: "Enter passphrase", Description: "derive key from your input"},
+		})
+		if err != nil {
+			return err
+		}
+		if setMode == "generate" {
+			args = []string{"set", "--generate"}
+		}
 	}
 
 	ctx, err := domain.LoadProjectContext()
@@ -122,29 +148,18 @@ func RunLockCommand(args []string, cliName string) error {
 	if err != nil {
 		return err
 	}
+	targets, err = mergeTrackedLockTargets(ctx, targets)
+	if err != nil {
+		return err
+	}
 	if len(targets) == 0 {
 		fmt.Println("No sensitive files detected to lock.")
 		return nil
 	}
 
-	count := 0
-	for _, path := range targets {
-		dst := path + domain.EncryptedExt
-		if dryRun {
-			fmt.Printf("[dry-run] %s -> %s\n", path, dst)
-			count++
-			continue
-		}
-
-		encryptedPath, originalMode, err := domain.EncryptFile(path, key)
-		if err != nil {
-			return fmt.Errorf("encrypt %s: %w", path, err)
-		}
-		if err := domain.UpsertVaultEntry(ctx, path, encryptedPath, originalMode); err != nil {
-			return fmt.Errorf("track vault entry %s: %w", path, err)
-		}
-		fmt.Printf("locked %s\n", path)
-		count++
+	count, err := lockTargets(ctx, key, targets, dryRun)
+	if err != nil {
+		return err
 	}
 
 	if dryRun {
@@ -208,4 +223,62 @@ func RunUnlockCommand(args []string, cliName string) error {
 	}
 	fmt.Printf("Unlocked %d file(s).\n", count)
 	return nil
+}
+
+func lockTargets(ctx domain.ProjectContext, key []byte, targets []string, dryRun bool) (int, error) {
+	count := 0
+	for _, path := range targets {
+		dst := path + domain.EncryptedExt
+		if dryRun {
+			fmt.Printf("[dry-run] %s -> %s\n", path, dst)
+			count++
+			continue
+		}
+
+		encryptedPath, originalMode, err := domain.EncryptFile(path, key)
+		if err != nil {
+			return count, fmt.Errorf("encrypt %s: %w", path, err)
+		}
+		if err := domain.UpsertVaultEntry(ctx, path, encryptedPath, originalMode); err != nil {
+			return count, fmt.Errorf("track vault entry %s: %w", path, err)
+		}
+		fmt.Printf("locked %s\n", path)
+		count++
+	}
+	return count, nil
+}
+
+func mergeTrackedLockTargets(ctx domain.ProjectContext, scanTargets []string) ([]string, error) {
+	set := make(map[string]struct{}, len(scanTargets))
+	for _, target := range scanTargets {
+		if strings.TrimSpace(target) == "" {
+			continue
+		}
+		abs, err := filepath.Abs(target)
+		if err != nil {
+			return nil, err
+		}
+		if domain.FileExists(abs) {
+			set[abs] = struct{}{}
+		}
+	}
+
+	manifest, _, err := domain.LoadVaultManifest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range domain.SortedVaultEntryKeys(manifest) {
+		entry := manifest.Entries[key]
+		target := domain.ResolveEntryTargetPath(ctx, entry)
+		if domain.FileExists(target) {
+			set[target] = struct{}{}
+		}
+	}
+
+	out := make([]string, 0, len(set))
+	for target := range set {
+		out = append(out, target)
+	}
+	sort.Strings(out)
+	return out, nil
 }

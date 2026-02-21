@@ -8,6 +8,12 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
+		if hasInteractiveStdio() {
+			if err := runInteractiveCommandPicker(); err != nil {
+				exitWithError(err)
+			}
+			return
+		}
 		printUsage()
 		exitWithError(errors.New("missing command"))
 	}
@@ -34,6 +40,8 @@ func main() {
 		err = runAbsorbCommand(os.Args[2:])
 	case "setup":
 		err = runSetupCommand(os.Args[2:])
+	case "cleanup":
+		err = runCleanupCommand(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 		return

@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/zalando/go-keyring"
 	"golang.org/x/term"
@@ -18,6 +20,15 @@ import (
 )
 
 const ServiceName = "secrets-vault-cli"
+const metadataKeySuffix = "-metadata"
+
+type KeyMetadata struct {
+	ProjectID   string `json:"project_id"`
+	ProjectPath string `json:"project_path"`
+	Machine     string `json:"machine,omitempty"`
+	User        string `json:"user,omitempty"`
+	RecordedAt  string `json:"recorded_at"`
+}
 
 func KeyFromInput(value string, generate bool) ([]byte, error) {
 	if generate {
@@ -64,7 +75,10 @@ func SaveProjectKey(ctx domain.ProjectContext, key []byte) error {
 	if len(key) != 32 {
 		return fmt.Errorf("invalid key length: got %d, want 32", len(key))
 	}
-	return keyring.Set(ServiceName, ctx.KeyID, base64.StdEncoding.EncodeToString(key))
+	if err := keyring.Set(ServiceName, ctx.KeyID, base64.StdEncoding.EncodeToString(key)); err != nil {
+		return err
+	}
+	return saveProjectKeyMetadata(ctx)
 }
 
 func LoadProjectKey(ctx domain.ProjectContext) ([]byte, error) {
@@ -83,10 +97,37 @@ func LoadProjectKey(ctx domain.ProjectContext) ([]byte, error) {
 }
 
 func ClearProjectKey(ctx domain.ProjectContext) error {
-	return keyring.Delete(ServiceName, ctx.KeyID)
+	if err := keyring.Delete(ServiceName, ctx.KeyID); err != nil {
+		return err
+	}
+	if err := keyring.Delete(ServiceName, ctx.KeyID+metadataKeySuffix); err != nil && !errors.Is(err, keyring.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 func Fingerprint(key []byte) string {
 	h := sha256.Sum256(key)
 	return hex.EncodeToString(h[:6])
+}
+
+func saveProjectKeyMetadata(ctx domain.ProjectContext) error {
+	hostname, _ := os.Hostname()
+	user := strings.TrimSpace(os.Getenv("USER"))
+	if user == "" {
+		user = strings.TrimSpace(os.Getenv("USERNAME"))
+	}
+
+	payload := KeyMetadata{
+		ProjectID:   ctx.ProjectID,
+		ProjectPath: ctx.ProjectPath,
+		Machine:     hostname,
+		User:        user,
+		RecordedAt:  time.Now().UTC().Format(time.RFC3339),
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return keyring.Set(ServiceName, ctx.KeyID+metadataKeySuffix, string(raw))
 }

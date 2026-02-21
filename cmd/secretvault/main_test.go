@@ -19,7 +19,8 @@ func TestParseInstallArgs(t *testing.T) {
 		wantErr  bool
 		errMatch string
 	}{
-		{name: "default mode", args: []string{"opencode"}, target: "opencode", mode: hookModeStable},
+		{name: "default mode", args: []string{"opencode"}, target: "opencode", mode: hookModeStrict},
+		{name: "default claude mode", args: []string{"claude"}, target: "claude", mode: hookModeStable},
 		{name: "explicit strict mode", args: []string{"--mode", "strict", "claude"}, target: "claude", mode: hookModeStrict},
 		{name: "equals style mode", args: []string{"--mode=stable-dev", "opencode"}, target: "opencode", mode: hookModeStable},
 		{name: "missing target", args: []string{"--mode", "strict"}, wantErr: true, errMatch: "missing install target"},
@@ -249,13 +250,17 @@ func TestRestorePlaintextFromEncrypted(t *testing.T) {
 func TestSensitiveFileScanAndEncryptedScan(t *testing.T) {
 	dir := t.TempDir()
 	paths := map[string]string{
-		".env":                       "A=1\n",
-		"backend.tfvars":             "db_password=\"x\"\n",
-		"secrets/token.txt":          "token=abc\n",
-		"config.txt":                 "password = hunter2\n",
-		"notes.txt":                  "hello\n",
-		"node_modules/.env":          "SHOULD_NOT_BE_FOUND=1\n",
-		"node_modules/secret.tfvars": "db=1\n",
+		".env":                             "A=1\n",
+		"backend.tfvars":                   "db_password=\"x\"\n",
+		"secrets/token.txt":                "token=abc\n",
+		"config.txt":                       "password = hunter2\n",
+		"CLAUDE.md.pre-absorb":             "token=old-backup\n",
+		"scripts/add-secret":               "token=example\n",
+		"main.tf":                          "secret = var.some_value\n",
+		"notes.txt":                        "hello\n",
+		".terraform/providers/x/README.md": "secret = not-a-secret-example\n",
+		"node_modules/.env":                "SHOULD_NOT_BE_FOUND=1\n",
+		"node_modules/secret.tfvars":       "db=1\n",
 	}
 
 	for rel, data := range paths {
@@ -287,6 +292,10 @@ func TestSensitiveFileScanAndEncryptedScan(t *testing.T) {
 	}
 
 	mustNotContain := []string{
+		filepath.Join(dir, "CLAUDE.md.pre-absorb"),
+		filepath.Join(dir, "scripts", "add-secret"),
+		filepath.Join(dir, "main.tf"),
+		filepath.Join(dir, ".terraform", "providers", "x", "README.md"),
 		filepath.Join(dir, "notes.txt"),
 		filepath.Join(dir, "node_modules", ".env"),
 		filepath.Join(dir, "node_modules", "secret.tfvars"),
