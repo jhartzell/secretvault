@@ -1,0 +1,48 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run CLI locally
+    cmds:
+      - go run ./cmd/secretvault help
+
+  build:
+    desc: Build secretvault binary
+    cmds:
+      - mkdir -p bin
+      - go build -o bin/secretvault ./cmd/secretvault
+
+  test:
+    desc: Run Go tests
+    cmds:
+      - go test ./...
+
+  smoke:
+    desc: Run end-to-end smoke test
+    cmds:
+      - bash ./smoke-test.sh
+
+  setup:
+    desc: Interactive dependency setup
+    cmds:
+      - go run ./cmd/secretvault setup
+
+  absorb:
+    desc: Absorb project secrets into 1Password
+    requires:
+      vars: [VAULT]
+    cmds:
+      - go run ./cmd/secretvault absorb --vault "{{.VAULT}}"
+
+  release:
+    desc: Tag and push release (triggers GitHub Release workflow)
+    requires:
+      vars: [VERSION]
+    cmds:
+      - |
+        case "{{.VERSION}}" in
+          v*) ;;
+          *) echo "VERSION must start with v (example: v0.1.0)"; exit 1 ;;
+        esac
+      - git tag {{.VERSION}}
+      - git push origin {{.VERSION}}
