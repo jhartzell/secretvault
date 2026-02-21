@@ -30,4 +30,6 @@ jobs:
         run: task test
 
       - name: Run smoke test
+        env:
+          SECRETVAULT_KEYRING_FALLBACK: file
         run: task smoke

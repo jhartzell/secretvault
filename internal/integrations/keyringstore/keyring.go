@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -75,6 +76,12 @@ func SaveProjectKey(ctx domain.ProjectContext, key []byte) error {
 	if len(key) != 32 {
 		return fmt.Errorf("invalid key length: got %d, want 32", len(key))
 	}
+	if shouldUseFileFallback() {
+		if err := saveProjectKeyToFile(ctx, key); err != nil {
+			return err
+		}
+		return saveProjectKeyMetadataToFile(ctx)
+	}
 	if err := keyring.Set(ServiceName, ctx.KeyID, base64.StdEncoding.EncodeToString(key)); err != nil {
 		return err
 	}
@@ -82,6 +89,9 @@ func SaveProjectKey(ctx domain.ProjectContext, key []byte) error {
 }
 
 func LoadProjectKey(ctx domain.ProjectContext) ([]byte, error) {
+	if shouldUseFileFallback() {
+		return loadProjectKeyFromFile(ctx)
+	}
 	raw, err := keyring.Get(ServiceName, ctx.KeyID)
 	if err != nil {
 		return nil, err
@@ -97,6 +107,9 @@ func LoadProjectKey(ctx domain.ProjectContext) ([]byte, error) {
 }
 
 func ClearProjectKey(ctx domain.ProjectContext) error {
+	if shouldUseFileFallback() {
+		return clearProjectKeyFileFallback(ctx)
+	}
 	if err := keyring.Delete(ServiceName, ctx.KeyID); err != nil {
 		return err
 	}
@@ -112,6 +125,63 @@ func Fingerprint(key []byte) string {
 }
 
 func saveProjectKeyMetadata(ctx domain.ProjectContext) error {
+	payload, err := projectKeyMetadataPayload(ctx)
+	if err != nil {
+		return err
+	}
+	return keyring.Set(ServiceName, ctx.KeyID+metadataKeySuffix, string(payload))
+}
+
+func saveProjectKeyToFile(ctx domain.ProjectContext, key []byte) error {
+	keyPath, err := fallbackKeyPath(ctx)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0o700); err != nil {
+		return err
+	}
+	encoded := []byte(base64.StdEncoding.EncodeToString(key))
+	return domain.WriteAtomic(keyPath, encoded, 0o600)
+}
+
+func loadProjectKeyFromFile(ctx domain.ProjectContext) ([]byte, error) {
+	keyPath, err := fallbackKeyPath(ctx)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(keyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, keyring.ErrNotFound
+		}
+		return nil, err
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return nil, errors.New("stored key has invalid format")
+	}
+	if len(b) != 32 {
+		return nil, fmt.Errorf("stored key has invalid length: %d", len(b))
+	}
+	return b, nil
+}
+
+func saveProjectKeyMetadataToFile(ctx domain.ProjectContext) error {
+	metadataPath, err := fallbackMetadataPath(ctx)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(metadataPath), 0o700); err != nil {
+		return err
+	}
+	payload, err := projectKeyMetadataPayload(ctx)
+	if err != nil {
+		return err
+	}
+	return domain.WriteAtomic(metadataPath, payload, 0o600)
+}
+
+func projectKeyMetadataPayload(ctx domain.ProjectContext) ([]byte, error) {
 	hostname, _ := os.Hostname()
 	user := strings.TrimSpace(os.Getenv("USER"))
 	if user == "" {
@@ -125,9 +195,36 @@ func saveProjectKeyMetadata(ctx domain.ProjectContext) error {
 		User:        user,
 		RecordedAt:  time.Now().UTC().Format(time.RFC3339),
 	}
-	raw, err := json.Marshal(payload)
+	return json.Marshal(payload)
+}
+
+func clearProjectKeyFileFallback(ctx domain.ProjectContext) error {
+	keyPath, err := fallbackKeyPath(ctx)
 	if err != nil {
 		return err
 	}
-	return keyring.Set(ServiceName, ctx.KeyID+metadataKeySuffix, string(raw))
+	if err := os.Remove(keyPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	metadataPath, err := fallbackMetadataPath(ctx)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(metadataPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func fallbackKeyPath(ctx domain.ProjectContext) (string, error) {
+	return domain.AbsoluteVaultFilePath(ctx, "keyring-fallback.key")
+}
+
+func fallbackMetadataPath(ctx domain.ProjectContext) (string, error) {
+	return domain.AbsoluteVaultFilePath(ctx, "keyring-fallback-metadata.json")
+}
+
+func shouldUseFileFallback() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("SECRETVAULT_KEYRING_FALLBACK")), "file")
 }
