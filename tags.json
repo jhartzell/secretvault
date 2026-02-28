@@ -1,0 +1,23 @@
+{
+  "area:setup": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "area:cli-ux": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "type:feature": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "type:bug-fix": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "integration:1password": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "platform:arch-linux": [
+    "2026-02-21-ff9dfe3f"
+  ],
+  "ux:interactive-cli": [
+    "2026-02-21-ff9dfe3f"
+  ]
+}
